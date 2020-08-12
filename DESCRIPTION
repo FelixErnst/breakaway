@@ -44,4 +44,4 @@ Remotes:
 VignetteBuilder: knitr
 URL: https://adw96.github.io/breakaway/
 BugReports: https://github.com/adw96/breakaway/issues
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.1

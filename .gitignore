@@ -14,7 +14,6 @@ docs
 # R files #
 ###########
 *.Rhistory
-*.Rbuildignore
 *.Rapp.history
 
 # Packages #
