@@ -2,7 +2,8 @@ context("qiime2 examples")
 library(breakaway)
 
 test_that("Canonical QIIME2 Example Datasets Work", {
-  x <- system.file("extdata","otu_table_atacama.txt", package="breakaway")
+  file <- system.file("extdata","otu_table_atacama.txt", package="breakaway")
+  x <- readLines(con = file)
   a_table <- read.table(text = x,
                         skip = 0, 
                         header = F, 

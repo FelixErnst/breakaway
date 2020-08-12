@@ -9,6 +9,7 @@ data/.Rapp.history
 make-data-files.R
 playing/
 stashed/*
+docs
 
 # R files #
 ###########
