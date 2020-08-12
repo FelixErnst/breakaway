@@ -1,4 +1,4 @@
-# breakaway <img src="man/figures/logo.png" align="right" width="165px"/>
+# breakaway <img src="man/figures/breakaway-logo.png" align="right" width="165px"/>
 
 [![Travis-CI Build
 Status](https://travis-ci.org/adw96/breakaway.svg?branch=master)](https://travis-ci.org/adw96/breakaway)
