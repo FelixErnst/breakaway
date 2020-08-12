@@ -10,6 +10,7 @@ r_packages:
 r_github_packages:
   - bryandmartin/corncob
   - adw96/DivNet
+  - adw96/breakaway
 cache:
   packages: true
 before_cache:
