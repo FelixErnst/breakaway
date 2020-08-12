@@ -1,20 +1,26 @@
-# R for travis: see documentation at https://docs.travis-ci.com/user/languages/r
-
 language: r
-warnings_are_errors: true
-sudo: false
-cache: packages
-
+r:
+  - bioc-devel
 before_install:
-  - Rscript -e 'if (!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")}; BiocManager::install(c("phyloseq"), ask = FALSE)'
-
+  - sudo apt-get update
+  - sudo apt-get install -y libpoppler-cpp-dev libmagick++-dev
+r_packages:
+  - covr
+  - magick
 r_github_packages:
-  - r-lib/covr
   - bryandmartin/corncob
-
+  - adw96/DivNet
+cache:
+  packages: true
+before_cache: Rscript -e 'remotes::install_cran("pkgdown")'
+   deploy:
+     provider: script
+     script: Rscript -e 'pkgdown::deploy_site_github()'
+     skip_cleanup: true
 after_success:
-  - Rscript -e 'covr::codecov()'
-
-env:
-  - _R_S3_METHOD_LOOKUP_BASEENV_AFTER_GLOBALENV_=true
-  - _R_S3_METHOD_LOOKUP_USE_TOPENV_AS_DEFENV_=true
+   - Rscript -e 'covr::codecov()'
+notifications:
+  email:
+    recipients:
+    on_success: change
+    on_failure: always

@@ -7,9 +7,18 @@ vignette: >
   %\VignetteIndexEntry{getting-started}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+bibliography: references.bib
 ---
 
-`breakaway` is a package for species richness estimation and modelling. As the package has grown and users have requested more functionality, it contains some basic generalisations of the statistical philosophy that underpins `breakaway` to the general alpha diversity case. Because of the flexibility of the modelling strategies, most users of breakaway are microbial ecologists with very large OTU tables, however, nothing should exclude a macroecologist from using the same tools. If you have a macroecology dataset and want to use this package, I would love to hear from you so please feel free to contact me (email or via Github's Issues/Projects infrastructure).
+`breakaway` is a package for species richness estimation and modelling
+[[@Willis2015]](#References). As the package has grown and users have requested
+more functionality, it contains some basic generalisations of the statistical
+philosophy that underpins `breakaway` to the general alpha diversity case.
+Because of the flexibility of the modelling strategies, most users of breakaway
+are microbial ecologists with very large OTU tables, however, nothing should
+exclude a macroecologist from using the same tools. If you have a macroecology
+dataset and want to use this package, I would love to hear from you so please
+feel free to contact me (email or via Github's Issues/Projects infrastructure).
 
 ## Vignette Info
 
@@ -19,10 +28,12 @@ This vignette will lead you through
 - creating frequency tables
 - using `breakaway` to estimate species richness
 - using the objective bayes methods to estimate species richness
-- estimating various alpha diversity indices and providing a very basic resample-based method for ascribing variability to them
+- estimating various alpha diversity indices and providing a very basic 
+  resample-based method for ascribing variability to them
 - using `betta` to model changes in alpha diversity with covariates
 
-If there is something that you would like explained please feel free to request it!
+If there is something that you would like explained please feel free to request 
+it!
 
 ## Loading the package and data
 
@@ -39,21 +50,27 @@ meta_data <- toy_metadata
 head(meta_data)
 ```
 
-It is important that the column names of the OTU table is the same as the rownames of the covariate information. Remember to reorder them if they don't match!  You can check this with
+It is important that the column names of the OTU table is the same as the
+rownames of the covariate information. Remember to reorder them if they don't
+match!  You can check this with
 
 ```{r}
 head(colnames(otu_data) == rownames(meta_data))
 ```
 
 ## Creating frequency tables
-We're now going to "collapse" the otu_data's columns (samples) into frequency tables. Frequency tables...
+
+We're now going to "collapse" the otu_data's columns (samples) into frequency 
+tables. Frequency tables...
 
 ```{r}
 frequencytablelist <- build_frequency_count_tables(otu_data)
 head(frequencytablelist[[63]])
 ```
 
-Interpretation: In this sample, there were 57 different species observed only once (singletons), 25 different species observed only twice, ..., 1 species observed 171 times.
+Interpretation: In this sample, there were 57 different species observed only
+once (singletons), 25 different species observed only twice, ..., 1 species
+observed 171 times.
 
 
 ## Estimating species richness
@@ -64,23 +81,36 @@ Let's run breakaway on the first frequency count table
 breakaway(frequencytablelist[[1]])
 ```
 
-You should get some output to screen, including your estimate & s.e., and a plot of the fits to the ratios. Note that it is not a fit to the frequencies, it is a fit to the ratios of frequencies. You would never need to include this type of plot in one of your papers. It is solely for you to check for model misspecification. What's model misspecification? If the black diamonds don't remotely follow the pattern of the white circles, that's model misspecification.
+You should get some output to screen, including your estimate & s.e., and a plot
+of the fits to the ratios. Note that it is not a fit to the frequencies, it is a
+fit to the ratios of frequencies. You would never need to include this type of
+plot in one of your papers. It is solely for you to check for model
+misspecification. What's model misspecification? If the black diamonds don't
+remotely follow the pattern of the white circles, that's model misspecification.
 
-Sometimes, breakaway's usual procedure doesn't work, that is, it gives a negative estimate, which is of course silly. In that case, breakaway returns a different model's result. It's called the WLRM. There isn't a picture. Here is an example of a case where breakaway returns the WLRM.
+Sometimes, breakaway's usual procedure doesn't work, that is, it gives a
+negative estimate, which is of course silly. In that case, breakaway returns a
+different model's result. It's called the WLRM. There isn't a picture. Here is
+an example of a case where breakaway returns the WLRM.
 
 ```{r}
 breakaway(frequencytablelist[[60]])
 ```
 
-breakaway can defer to the WLRM for several reasons. Perhaps there are too many singletons. Perhaps there isn't a long enough tail. Perhaps there is false diversity. In this case, there was probably not enough data. Let's see if this failure was sensitive to the singleton count by running
-breakaway_nof1. This requires no singleton count (implicit is that the singleton count was erroneous) and predicts it from the other frequencies.
+breakaway can defer to the WLRM for several reasons. Perhaps there are too many
+singletons. Perhaps there isn't a long enough tail. Perhaps there is false
+diversity. In this case, there was probably not enough data. Let's see if this
+failure was sensitive to the singleton count by running breakaway_nof1. This
+requires no singleton count (implicit is that the singleton count was erroneous)
+and predicts it from the other frequencies.
 
 ```{r}
 breakaway_nof1(frequencytablelist[[60]][-1,])
 ```
 
 The reference for this method:
-Willis, A. (2016). Species richness estimation with high diversity but spurious singletons.
+Willis, A. (2016). Species richness estimation with high diversity but spurious
+singletons.
 
 breakaway_nof1 is an exploratory tool for assessing sensitivity of
 breakaway to the singleton count. You should not use it for diversity
@@ -90,7 +120,9 @@ estimation -- only diversity *exploration* :)
 Let's move on to looking at the Objective Bayes procedures of
 Kathryn Barger. It's the latest and greatest in diversity estimation!
 
-There are 4 different types of objective bayes estimates, due to 4 different models. If you have time play with all of them! For now we are just going to look at the negative binomial.
+There are 4 different types of objective bayes estimates, due to 4 different 
+models. If you have time play with all of them! For now we are just going to 
+look at the negative binomial.
 
 ```{r}
 ## Uncomment this at home: just takes a while for compiling
@@ -103,7 +135,10 @@ set.seed(2)
 #objective_bayes_mixedgeo(frequencytablelist[[60]])$results
 ```
 
-That's a lot of information! Bayesians are very good at generating a lot of information. This is because rather than a single estimate you see the distribution of estimates (remember that the Bayesian paradigm believes the parameter to be random => it has a distribution)
+That's a lot of information! Bayesians are very good at generating a lot of
+information. This is because rather than a single estimate you see the
+distribution of estimates (remember that the Bayesian paradigm believes the
+parameter to be random => it has a distribution)
 
 Let's talk about some of the information:
  $results mode.N/mean.N/median.N : the mode/mean / median estimate
@@ -113,7 +148,8 @@ Let's talk about some of the information:
 
 ## Estimating alpha and beta diversity
 
-The above discussion focused exclusively on richness. Check out `github.com/adw96/DivNet` for alpha and beta diversity tutorials!
+The above discussion focused exclusively on richness. Check out 
+`github.com/adw96/DivNet` for alpha and beta diversity tutorials!
 
 
 ## Modelling alpha diversity

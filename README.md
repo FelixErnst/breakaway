@@ -1,7 +1,4 @@
-
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-
-# breakaway <img src="docs/breakaway-logo.png" align="right" width="165px"/>
+# breakaway <img src="man/figure/logo.png" align="right" width="165px"/>
 
 [![Travis-CI Build
 Status](https://travis-ci.org/adw96/breakaway.svg?branch=master)](https://travis-ci.org/adw96/breakaway)

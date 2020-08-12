@@ -2,8 +2,7 @@ context("qiime2 examples")
 library(breakaway)
 
 test_that("Canonical QIIME2 Example Datasets Work", {
-  
-  x <- RCurl::getURL("https://raw.githubusercontent.com/paulinetrinh/data/master/otu_table_atacama.txt")
+  file <- system.file("extdata","otu_table_atacama.txt", package="breakaway")
   a_table <- read.table(text =x,
                         skip = 0, 
                         header = F, 
