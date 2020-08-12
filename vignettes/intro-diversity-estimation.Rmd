@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: 
   output: rmarkdown::github_document
 vignette: >
-  %\VignetteIndexEntry{intro-diversity-estimation}
+  %\VignetteIndexEntry{Introduction to diversity estimation}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 bibliography: references.bib

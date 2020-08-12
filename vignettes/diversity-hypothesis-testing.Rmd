@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: 
   output: rmarkdown::github_document
 vignette: >
-  %\VignetteIndexEntry{intro-hypothesis-testing}
+  %\VignetteIndexEntry{Introduction to hypothesis testing for diversity}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 bibliography: references.bib
