@@ -101,11 +101,12 @@ breakaway.data.frame <- function(input_data,
 #' @export
 breakaway.default <- function(input_data, 
                               cutoff = NA, ...) {
+  # input check
+  input_data <- convert(input_data)
   
-  my_data <- convert(input_data)
-  
+  #
   ### here is where we catch dumb edge cases
-  if (is.null(my_data)) {
+  if (is.null(input_data)) {
     return(alpha_estimate(estimate = 0, 
                           error = 0,
                           name = "Plug-in",
@@ -114,43 +115,52 @@ breakaway.default <- function(input_data,
                           warnings = "All counts are zero",
                           reasonable = F,
                           interval=c(0,0)))
-  } else if (length(my_data$index) == 1) {
+  } else if (length(input_data$index) == 1) {
     return(sample_richness(input_data))
   }
+  # choose initial model based on input characteristics
   
-  breakaway_alpha_estimate <- kemp(input_data, cutoff = cutoff)
-  
-  if (!is.null(breakaway_alpha_estimate$warnings) |
-      breakaway_alpha_estimate$error >  breakaway_alpha_estimate$estimate) {
+  #
+  if(.check_singletons(input_data)){
+    breakaway_alpha_estimate <- kemp(input_data, cutoff = cutoff)
+    if (is.null(breakaway_alpha_estimate$warnings) &&
+        breakaway_alpha_estimate$error <= breakaway_alpha_estimate$estimate) {
+      return(.rename_to_breakaway(breakaway_alpha_estimate))
+    }
     
     breakaway_alpha_estimate <- wlrm_untransformed(input_data, cutoff = cutoff)
-    
-    if (!is.null(breakaway_alpha_estimate$warnings)) {
-      
-      breakaway_alpha_estimate <- chao_bunge(input_data, cutoff = cutoff)
-      
-      if (!is.null(breakaway_alpha_estimate$warnings)) {
-        
-        breakaway_alpha_estimate <- poisson_model(input_data, cutoff = cutoff)
-        
-        if (!is.null(breakaway_alpha_estimate$warnings)) {
-          
-          breakaway_alpha_estimate <- wlrm_transformed(input_data, cutoff = cutoff)
-          
-          if (!is.null(breakaway_alpha_estimate$warnings)) {
-            
-            breakaway_alpha_estimate <- chao1(input_data)
-            
-            if (!is.null(breakaway_alpha_estimate$warnings)) {
-              
-              warning("Could not estimate missing taxa; outputting sample richness")
-              breakaway_alpha_estimate <- sample_richness(input_data)
-            }
-          }
-        }
-      }
+    if (is.null(breakaway_alpha_estimate$warnings)) {
+      return(.rename_to_breakaway(breakaway_alpha_estimate))
     }
   }
-  breakaway_alpha_estimate$name <- "breakaway"
-  breakaway_alpha_estimate
+  
+  breakaway_alpha_estimate <- chao_bunge(input_data, cutoff = cutoff)
+  if (is.null(breakaway_alpha_estimate$warnings)) {
+    return(.rename_to_breakaway(breakaway_alpha_estimate))
+  }
+  
+  breakaway_alpha_estimate <- poisson_model(input_data, cutoff = cutoff)
+  if (is.null(breakaway_alpha_estimate$warnings)) {
+    return(.rename_to_breakaway(breakaway_alpha_estimate))
+  }
+  
+  if(.check_singletons(input_data)){
+    breakaway_alpha_estimate <- wlrm_transformed(input_data, cutoff = cutoff)
+    if (is.null(breakaway_alpha_estimate$warnings)) {
+      return(.rename_to_breakaway(breakaway_alpha_estimate))
+    }
+  }
+  
+  breakaway_alpha_estimate <- chao1(input_data)
+  if (!is.null(breakaway_alpha_estimate$warnings)) {
+    warning("Could not estimate missing taxa; outputting sample richness")
+    breakaway_alpha_estimate <- sample_richness(input_data)
+  }
+  
+  .rename_to_breakaway(breakaway_alpha_estimate)
+}
+
+.rename_to_breakaway <- function(est){
+  est$name <- "breakaway"
+  est
 }

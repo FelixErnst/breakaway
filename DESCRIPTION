@@ -1,7 +1,7 @@
 Package: breakaway
 Title: Species Richness Estimation and Modeling
-Version: 4.7.1-1
-Date: 2020-06-22
+Version: 4.7.1-2
+Date: 2020-08-13
 Authors@R: 
     c(person("Amy", "Willis", email = "adwillis@uw.edu",
              role = c("aut", "cre")),
@@ -16,10 +16,12 @@ Description: Understanding the drivers of microbial diversity is an important
     diversity. `breakaway` implements the latest and greatest estimates of 
     species richness, as well as the most commonly used estimates.
 License: GPL-2
+Encoding: UTF-8
 LazyData: true
 Depends:
     R (>= 3.5.0)
 Imports: 
+    methods,
     utils,
     stats,
     dplyr,

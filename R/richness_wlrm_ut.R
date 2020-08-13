@@ -33,7 +33,7 @@
 #' wlrm_untransformed(apples)
 #' 
 #' @export
-wlrm_untransformed  <- function(input_data, 
+wlrm_untransformed <- function(input_data, 
                                 cutoff = NA,
                                 print = NULL, 
                                 plot = NULL, 
@@ -50,7 +50,7 @@ wlrm_untransformed  <- function(input_data,
   
   n <- sum(my_data[,2])
   
-  if (my_data[1,1] != 1 || my_data[1,2] == 0) {
+  if (!.check_singletons(my_data)) {
     wlrm_alpha_estimate <- alpha_estimate(estimand = "richness",
                                           estimate = NA,
                                           error = NA,
@@ -62,102 +62,99 @@ wlrm_untransformed  <- function(input_data,
                                           parametric = TRUE,
                                           reasonable = FALSE,
                                           warnings = "no singleton count")
+    return(wlrm_alpha_estimate)
+  }
+  
+  # TODO fix 
+  f1 <- my_data[1,2]
+  
+  cutoff <- cutoff_wrap(my_data, requested = cutoff) 
+  
+  if (cutoff < 4) {
+    wlrm_alpha_estimate <- alpha_estimate(estimand = "richness",
+                                          estimate = NA,
+                                          error = NA,
+                                          model = "Negative Binomial",
+                                          name = "wlrm_transformed",
+                                          frequentist = TRUE,
+                                          interval = c(NA, NA),
+                                          parametric = TRUE,
+                                          reasonable = FALSE,
+                                          warnings = "insufficient contiguous frequencies")
+    return(wlrm_alpha_estimate)
+  }
+      
+  my_data <- my_data[1:cutoff, ]
+  ys <- (my_data[1:(cutoff-1),1]+1)*my_data[2:cutoff,2]/my_data[1:(cutoff-1),2]
+  xs <- 1:(cutoff-1)
+  xbar <- mean(xs)
+  lhs <- list("x"=xs-xbar,
+              "y"=my_data[2:cutoff, 2] / my_data[1:(cutoff-1), 2])
+  
+  weights_untrans <- 1/(my_data[-1, 1]^2 * my_data[-1, 2] * my_data[-cutoff, 2]^-2 * 
+                          (my_data[-1, 2] * my_data[-cutoff,2]^-1 + 1))
+  
+  lm2 <- lm(ys ~ xs, 
+            weights = weights_untrans)
+  b0_hat <- summary(lm2)$coef[1,1]
+  
+  if(b0_hat > 0) {
+    
+    b0_se <- summary(lm2)$coef[1,2]
+    f0 <- f1/b0_hat
+    diversity <- f0 + n
+    f0_se <- sqrt( f1*(1-f1/n)*b0_hat^-2 + f1^2*b0_hat^-4*b0_se^2   ) #1st order d.m.
+    
+    if (is.nan(f0_se)) {
+      my_warning <- "infinite std error"
+      diversity_se <- NaN
+      d <- NaN
+    } else {
+      diversity_se <- sqrt(f0_se^2+n*f0/(n+f0))
+      d <- exp(1.96*sqrt(log(1+diversity_se^2/f0)))
+      my_warning <- NULL
+    }
+    
+    yhats <- fitted(lm2)/(my_data[1:(cutoff-1),1]+1)
+    
+    plot_data <- rbind(data.frame("x" = xs, "y" = lhs$y, 
+                                  "type" = "Observed"),
+                       data.frame("x" = xs, "y" = yhats, 
+                                  "type" = "Fitted"),
+                       data.frame("x" = 0, "y" = b0_hat, 
+                                  "type" = "Prediction"))
+    
+    my_plot <- ggplot(plot_data, 
+                      aes_string(x = "x", 
+                                 y = "y",
+                                 col = "type", 
+                                 pch = "type")) +
+      geom_point() +
+      labs(x = "x", y = "f(x+1)/f(x)", title = "Plot of ratios and fitted values: tWLRLM") +
+      theme_bw()
     
   } else {
-    
-    # TODO fix 
-    f1 <- my_data[1,2]
-    
-    cutoff <- cutoff_wrap(my_data, requested = cutoff) 
-    
-    if (cutoff < 4) {
-      wlrm_alpha_estimate <- alpha_estimate(estimand = "richness",
-                                            estimate = NA,
-                                            error = NA,
-                                            model = "Negative Binomial",
-                                            name = "wlrm_transformed",
-                                            frequentist = TRUE,
-                                            interval = c(NA, NA),
-                                            parametric = TRUE,
-                                            reasonable = FALSE,
-                                            warnings = "insufficient contiguous frequencies")
-    } else {
-      
-      my_data <- my_data[1:cutoff, ]
-      ys <- (my_data[1:(cutoff-1),1]+1)*my_data[2:cutoff,2]/my_data[1:(cutoff-1),2]
-      xs <- 1:(cutoff-1)
-      xbar <- mean(xs)
-      lhs <- list("x"=xs-xbar,
-                  "y"=my_data[2:cutoff, 2] / my_data[1:(cutoff-1), 2])
-      
-      weights_untrans <- 1/(my_data[-1, 1]^2 * my_data[-1, 2] * my_data[-cutoff, 2]^-2 * 
-                              (my_data[-1, 2] * my_data[-cutoff,2]^-1 + 1))
-      
-      lm2 <- lm(ys ~ xs, 
-                weights = weights_untrans)
-      b0_hat <- summary(lm2)$coef[1,1]
-      
-      if(b0_hat > 0) {
-        
-        b0_se <- summary(lm2)$coef[1,2]
-        f0 <- f1/b0_hat
-        diversity <- f0 + n
-        f0_se <- sqrt( f1*(1-f1/n)*b0_hat^-2 + f1^2*b0_hat^-4*b0_se^2   ) #1st order d.m.
-        
-        if (is.nan(f0_se)) {
-          my_warning <- "infinite std error"
-          diversity_se <- NaN
-          d <- NaN
-        } else {
-          diversity_se <- sqrt(f0_se^2+n*f0/(n+f0))
-          d <- exp(1.96*sqrt(log(1+diversity_se^2/f0)))
-          my_warning <- NULL
-        }
-        
-        yhats <- fitted(lm2)/(my_data[1:(cutoff-1),1]+1)
-        
-        plot_data <- rbind(data.frame("x" = xs, "y" = lhs$y, 
-                                      "type" = "Observed"),
-                           data.frame("x" = xs, "y" = yhats, 
-                                      "type" = "Fitted"),
-                           data.frame("x" = 0, "y" = b0_hat, 
-                                      "type" = "Prediction"))
-        
-        my_plot <- ggplot(plot_data, 
-                          aes_string(x = "x", 
-                                     y = "y",
-                                     col = "type", 
-                                     pch = "type")) +
-          geom_point() +
-          labs(x = "x", y = "f(x+1)/f(x)", title = "Plot of ratios and fitted values: tWLRLM") +
-          theme_bw()
-        
-      } else {
-        diversity <- NA
-        diversity_se <- NA
-        my_warning <- "negative richness estimate"
-        my_plot <- NULL
-        f0 <- NA; d <- NA
-        # if(print) cat("The utWLRM failed to produce an estimate.\n")
-      }
-      wlrm_alpha_estimate <- alpha_estimate(estimate = diversity,
-                                            error = diversity_se,
-                                            estimand = "richness",
-                                            name = "wlrm_untransformed",
-                                            interval = c(n + f0/d, n + f0*d),
-                                            type = "parametric",
-                                            model = "Negative Binomial",
-                                            frequentist = TRUE,
-                                            parametric = TRUE,
-                                            reasonable = FALSE,
-                                            interval_type = "Approximate: log-normal",
-                                            plot = my_plot, 
-                                            warnings = my_warning,
-                                            other = list(para = summary(lm2)$coef[,1:2],
-                                                         full = lm2,
-                                                         cutoff = cutoff))
-      
-    }
+    diversity <- NA
+    diversity_se <- NA
+    my_warning <- "negative richness estimate"
+    my_plot <- NULL
+    f0 <- NA; d <- NA
+    # if(print) cat("The utWLRM failed to produce an estimate.\n")
   }
-  wlrm_alpha_estimate
+  alpha_estimate(estimate = diversity,
+                 error = diversity_se,
+                 estimand = "richness",
+                 name = "wlrm_untransformed",
+                 interval = c(n + f0/d, n + f0*d),
+                 type = "parametric",
+                 model = "Negative Binomial",
+                 frequentist = TRUE,
+                 parametric = TRUE,
+                 reasonable = FALSE,
+                 interval_type = "Approximate: log-normal",
+                 plot = my_plot, 
+                 warnings = my_warning,
+                 other = list(para = summary(lm2)$coef[,1:2],
+                              full = lm2,
+                              cutoff = cutoff))
 }

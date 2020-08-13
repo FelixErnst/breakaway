@@ -98,10 +98,9 @@ kemp.data.frame <- function(input_data,
 #' @export
 kemp.default <- function(input_data,
                          cutoff = NA, ...)  {
-  
-  my_data <- convert(input_data)
-  
-  if (my_data[1, 1] != 1 || my_data[1, 2]==0) {
+  # input check
+  data <- convert(input_data)
+  if (!.check_singletons(data)) {
     kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
                                           estimate = NA,
                                           error = NA,
@@ -111,221 +110,221 @@ kemp.default <- function(input_data,
                                           parametric = TRUE,
                                           reasonable = FALSE,
                                           warnings = "no singleton count")
-  } else {
-    n <- sum(my_data$frequency)
-    f1 <- my_data[1, 2]
+    return(kemp_alpha_estimate)
+  }
+  
+  n <- sum(data$frequency)
+  f1 <- data[1, 2]
+  
+  cutoff <- cutoff_wrap(data, requested = cutoff) 
+  
+  if (cutoff < 6) { ## check for unusual data structures
     
-    cutoff <- cutoff_wrap(my_data, requested = cutoff) 
+    kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
+                                          estimate = NA,
+                                          error = NA,
+                                          model = "Kemp",
+                                          name = "kemp",
+                                          frequentist = TRUE, 
+                                          parametric = TRUE,
+                                          reasonable = FALSE,
+                                          warnings = "insufficient contiguous frequencies")
+    return(kemp_alpha_estimate)
     
-    if (cutoff < 6) { ## check for unusual data structures
+  } 
+  
+  ## set up structures
+  data <- data[1:cutoff, ]
+  ratios <- data[-1, 2]/data[-cutoff, 2]
+  xs <- 1:(cutoff-1)
+  ys <- (xs+1)*ratios
+  xbar <- mean(xs)
+  
+  lhs <- list("x" = xs-xbar, "y" = ratios)
+  
+  stopifnot(length(lhs$x) == length(lhs$y))
+  
+  stopifnot(length(lhs$x) == length(xs))
+  
+  weights_inv <- 1/xs
+  run <- minibreak_all(lhs, xs, ys, data, weights_inv, withf1 = TRUE)
+  result <- list()
+  choice <- list()
+  
+  ### If no models converged...
+  if (sum(as.numeric(run$useful[,5])) == 0) {
+    
+    kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
+                                          estimate = NA,
+                                          error = NA,
+                                          model = "Kemp",
+                                          name = "kemp",
+                                          frequentist = TRUE, 
+                                          parametric = TRUE,
+                                          reasonable = FALSE,
+                                          warnings = "no kemp models converged",
+                                          other = list(outcome = 0,
+                                                       code = 1))
+    
+  } else { 
+    ## Otherwise, YAY! Something worked for 1/x weighting
+    choice$outcome <- 1
+    choice$model <- rownames(run$useful)[min(which(run$useful[,5]==1))] #pick smallest
+    choice$full <-  run[[noquote(choice$model)]]
+    
+    oldest <- run$useful[run$useful[,5]==1,1][[1]]
+    est <- 0
+    its <- 0
+    while ( choice$outcome & abs(oldest-est) > 1 & its < 30) {
       
-      kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
-                                            estimate = NA,
-                                            error = NA,
-                                            model = "Kemp",
-                                            name = "kemp",
-                                            frequentist = TRUE, 
-                                            parametric = TRUE,
-                                            reasonable = FALSE,
-                                            warnings = "insufficient contiguous frequencies")
+      oldest <- est
+      C <- round(n+oldest,0)
+      unscaledprobs <- c(1,cumprod(fitted(choice$full)))
+      p <- unscaledprobs/sum(unscaledprobs)
+      as <- p[-1]^2/p[-cutoff]^3 * (1-exp(-C*p[-cutoff]))^3/(1-exp(-C*p[-1]))^2 * (1-C*p[-cutoff]/(exp(C*p[-cutoff])-1))
+      bs <- p[-1]/p[-cutoff]^2 * (1-exp(-C*p[-cutoff]))^2/(1-exp(-C*p[-1])) * (1-C*p[-1]/(exp(C*p[-1])-1))
+      ratiovars <- (as + bs)/C
       
-    } else {
+      # if (its == 0) {
+      #   weights1 <- 1/ratiovars
+      # }
       
-      ## set up structures
-      my_data <- my_data[1:cutoff, ]
-      ratios <- my_data[-1, 2]/my_data[-cutoff, 2]
-      xs <- 1:(cutoff-1)
-      ys <- (xs+1)*ratios
-      xbar <- mean(xs)
+      run <- try ( minibreak_all(lhs, xs, ys, data,
+                                 1/ratiovars, withf1 = TRUE),
+                   silent = 1)
       
-      lhs <- list("x" = xs-xbar, "y" = ratios)
+      # stopifnot(any(ratiovars < 0))
+      # run <- minibreak_all(lhs, xs, ys, data,
+      #                            1/ratiovars, withf1 = TRUE)
       
-      stopifnot(length(lhs$x) == length(lhs$y))
+      if ( class(run) == "try-error") {
+        ratiovars <- (p[-1]^2/p[-cutoff]^3 + p[-1]/p[-cutoff]^2)/C
+        # stopifnot(all(ratiovars > 0))
+        run <- try ( minibreak_all(lhs, xs, ys, data, 1/ratiovars, withf1 = TRUE), silent = 1)
+        if ( class(run) == "try-error") {
+          
+          kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
+                                                estimate = NA,
+                                                error = NA,
+                                                model = "Kemp",
+                                                name = "kemp",
+                                                frequentist = TRUE, 
+                                                parametric = TRUE,
+                                                reasonable = FALSE,
+                                                warnings = "no kemp models converged (numerical errors)",
+                                                other = list(outcome = 0,
+                                                             code = 1))
+          
+        }
+      }
       
-      stopifnot(length(lhs$x) == length(xs))
-      
-      weights_inv <- 1/xs
-      run <- minibreak_all(lhs, xs, ys, my_data, weights_inv, withf1 = TRUE)
-      result <- list()
       choice <- list()
-      
-      ### If no models converged...
-      if (sum(as.numeric(run$useful[,5])) == 0) {
-        
-        kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
-                                              estimate = NA,
-                                              error = NA,
-                                              model = "Kemp",
-                                              name = "kemp",
-                                              frequentist = TRUE, 
-                                              parametric = TRUE,
-                                              reasonable = FALSE,
-                                              warnings = "no kemp models converged",
-                                              other = list(outcome = 0,
-                                                           code = 1))
-        
-      } else { 
-        ## Otherwise, YAY! Something worked for 1/x weighting
+      if ( class(run) == "try-error") {
+        choice$outcome <- 0
+      } else if (sum(as.numeric(run$useful[,5]))==0 | 
+                 any(is.infinite(ratiovars)) |
+                 ratiovars[1] > 1e20 |
+                 any(ratiovars < 0)) {
+        choice$outcome <- 0
+      } else {
         choice$outcome <- 1
-        choice$model <- rownames(run$useful)[min(which(run$useful[,5]==1))] #pick smallest
+        choice$model <- rownames(run$useful)[min(which(run$useful[,5]==1))]
         choice$full <-  run[[noquote(choice$model)]]
         
-        oldest <- run$useful[run$useful[,5]==1,1][[1]]
-        est <- 0
-        its <- 0
-        while ( choice$outcome & abs(oldest-est) > 1 & its < 30) {
-          
-          oldest <- est
-          C <- round(n+oldest,0)
-          unscaledprobs <- c(1,cumprod(fitted(choice$full)))
-          p <- unscaledprobs/sum(unscaledprobs)
-          as <- p[-1]^2/p[-cutoff]^3 * (1-exp(-C*p[-cutoff]))^3/(1-exp(-C*p[-1]))^2 * (1-C*p[-cutoff]/(exp(C*p[-cutoff])-1))
-          bs <- p[-1]/p[-cutoff]^2 * (1-exp(-C*p[-cutoff]))^2/(1-exp(-C*p[-1])) * (1-C*p[-1]/(exp(C*p[-1])-1))
-          ratiovars <- (as + bs)/C
-          
-          # if (its == 0) {
-          #   weights1 <- 1/ratiovars
-          # }
-          
-          run <- try ( minibreak_all(lhs, xs, ys, my_data,
-                                     1/ratiovars, withf1 = TRUE),
-                       silent = 1)
-          
-          # stopifnot(any(ratiovars < 0))
-          # run <- minibreak_all(lhs, xs, ys, my_data,
-          #                            1/ratiovars, withf1 = TRUE)
-          
-          if ( class(run) == "try-error") {
-            ratiovars <- (p[-1]^2/p[-cutoff]^3 + p[-1]/p[-cutoff]^2)/C
-            # stopifnot(all(ratiovars > 0))
-            run <- try ( minibreak_all(lhs, xs, ys, my_data, 1/ratiovars, withf1 = TRUE), silent = 1)
-            if ( class(run) == "try-error") {
-              
-              kemp_alpha_estimate <- alpha_estimate(estimand = "richness",
-                                                    estimate = NA,
-                                                    error = NA,
-                                                    model = "Kemp",
-                                                    name = "kemp",
-                                                    frequentist = TRUE, 
-                                                    parametric = TRUE,
-                                                    reasonable = FALSE,
-                                                    warnings = "no kemp models converged (numerical errors)",
-                                                    other = list(outcome = 0,
-                                                                 code = 1))
-              
-            }
-          }
-          
-          choice <- list()
-          if ( class(run) == "try-error") {
-            choice$outcome <- 0
-          } else if (sum(as.numeric(run$useful[,5]))==0 | 
-                     any(is.infinite(ratiovars)) |
-                     ratiovars[1] > 1e20 |
-                     any(ratiovars < 0)) {
-            choice$outcome <- 0
-          } else {
-            choice$outcome <- 1
-            choice$model <- rownames(run$useful)[min(which(run$useful[,5]==1))]
-            choice$full <-  run[[noquote(choice$model)]]
-            
-            est <- run$useful[run$useful[,5]==1,1][[1]]
-            its <- its + 1
-            result$code <- 2
-          }
-        }
-        if (!choice$outcome) {
-          # if(output) cat("We used 1/x weighting. \n")
-          run <- minibreak_all(lhs, xs, ys, my_data, weights_inv, withf1 = TRUE)
-          choice$outcome <- 1
-          choice$model <- rownames(run$useful)[min(which(run$useful[,5]==1))]
-          choice$full <-  run[[noquote(choice$model)]]
-          result$code <- 3
-          
-        }
-        
-        if(choice$model=="model_1_0") {
-          b0_hat <- coef(choice$full)[1]
-          b0_var <- vcov(choice$full)[1,1]
-        } else {
-          effective_coef <- c(coef(choice$full), rep(0,9-length(coef(choice$full))))
-          b <- effective_coef[1]-effective_coef[2]*xbar+effective_coef[4]*xbar^2-effective_coef[6]*xbar^3+effective_coef[8]*xbar^4
-          a <- 1-effective_coef[3]*xbar+effective_coef[5]*xbar^2-effective_coef[7]*xbar^3+effective_coef[9]*xbar^4
-          
-          nabla <- c(1/a, -xbar/a, b*xbar/a^2, xbar^2/a, -b*xbar^2/a^2, -xbar^3/a, b*xbar^3/a^2, xbar^4/a, -b*xbar^4/a^2)
-          nabla <- nabla[1:length(coef(choice$full))]
-          
-          b0_hat <- b/a
-          b0_var <- t(nabla) %*% vcov(choice$full) %*% nabla
-        }
-        
-        f0 <- run$useful[rownames(run$useful) == choice$model,1][[1]]
-        f0_var <- f1*b0_hat^-2*(1 - f1/n + f1*b0_hat^-2 * b0_var) #1st order d.m.
-        
-        diversity <- unname(f0 + n)
-        diversity_se <- unname(c(sqrt(n*f0/diversity + f0_var)))
-        
-        if (choice$model == "model_1_0") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*x)/(1+x)"
-        if (choice$model == "model_1_1") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar))/(1+alpha1*(x-xbar))"
-        if (choice$model == "model_2_1") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2)/(1+alpha1*(x-xbar))"
-        if (choice$model == "model_2_2") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2)/(1+alpha1*(x-xbar)+alpha2)"
-        if (choice$model == "model_3_2") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2)"
-        if (choice$model == "model_3_3") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2+alpha3*(x-xbar)^3)"
-        if (choice$model == "model_4_3") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3+beta4*(x-xbar)^4)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2+alpha3*(x-xbar)^3)"
-        if (choice$model == "model_4_4") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3+beta4*(x-xbar)^4)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2+alpha3*(x-xbar)^3+alpha4*(x-xbar)^4)"
-        
-        parameter_table <-  coef(summary(choice$full))[,1:2]
-        colnames(parameter_table) <- c("Coef estimates","Coef std errors")
-        
-        d <- exp(1.96*sqrt(log(1+diversity_se^2/f0)))
-        
-        yhats <- fitted(choice$full)
-        
-        plot_data <- rbind(data.frame("x" = xs, 
-                                      "y" = lhs$y, 
-                                      "type" = "Observed"),
-                           data.frame("x" = xs, 
-                                      "y" = yhats, 
-                                      "type" = "Fitted"),
-                           data.frame("x" = 0, 
-                                      "y" = b0_hat, 
-                                      "type" = "Prediction"))
-        my_plot <- ggplot(plot_data, 
-                          aes_string(x = "x", 
-                                     y = "y",
-                                     col = "type", 
-                                     pch = "type")) +
-          geom_point() +
-          labs(x = "x", y = "f(x+1)/f(x)", title = "Plot of ratios and fitted values: Kemp models") +
-          theme_bw()
-        
-        kemp_alpha_estimate <- alpha_estimate(estimate = diversity,
-                                              error = diversity_se,
-                                              model = "Kemp",
-                                              name = "kemp",
-                                              estimand = "richness",
-                                              interval = c(n + f0/d, n + f0*d),
-                                              interval_type = "Approximate: log-normal", 
-                                              frequentist = TRUE, 
-                                              parametric = TRUE,
-                                              reasonable = TRUE,
-                                              warnings = NULL,
-                                              # legacy arguments
-                                              para = parameter_table,
-                                              plot = my_plot,
-                                              other = list(xbar = xbar,
-                                                           code = 1,
-                                                           the_function = the_function,
-                                                           name = choice$model),
-                                              full = choice$full,
-                                              f0_hat = f0)
-        
-        
+        est <- run$useful[run$useful[,5]==1,1][[1]]
+        its <- its + 1
+        result$code <- 2
       }
     }
+    if (!choice$outcome) {
+      # if(output) cat("We used 1/x weighting. \n")
+      run <- minibreak_all(lhs, xs, ys, data, weights_inv, withf1 = TRUE)
+      choice$outcome <- 1
+      choice$model <- rownames(run$useful)[min(which(run$useful[,5]==1))]
+      choice$full <-  run[[noquote(choice$model)]]
+      result$code <- 3
+      
+    }
+    
+    if(choice$model=="model_1_0") {
+      b0_hat <- coef(choice$full)[1]
+      b0_var <- vcov(choice$full)[1,1]
+    } else {
+      effective_coef <- c(coef(choice$full), rep(0,9-length(coef(choice$full))))
+      b <- effective_coef[1]-effective_coef[2]*xbar+effective_coef[4]*xbar^2-effective_coef[6]*xbar^3+effective_coef[8]*xbar^4
+      a <- 1-effective_coef[3]*xbar+effective_coef[5]*xbar^2-effective_coef[7]*xbar^3+effective_coef[9]*xbar^4
+      
+      nabla <- c(1/a, -xbar/a, b*xbar/a^2, xbar^2/a, -b*xbar^2/a^2, -xbar^3/a, b*xbar^3/a^2, xbar^4/a, -b*xbar^4/a^2)
+      nabla <- nabla[1:length(coef(choice$full))]
+      
+      b0_hat <- b/a
+      b0_var <- t(nabla) %*% vcov(choice$full) %*% nabla
+    }
+    
+    f0 <- run$useful[rownames(run$useful) == choice$model,1][[1]]
+    f0_var <- f1*b0_hat^-2*(1 - f1/n + f1*b0_hat^-2 * b0_var) #1st order d.m.
+    
+    diversity <- unname(f0 + n)
+    diversity_se <- unname(c(sqrt(n*f0/diversity + f0_var)))
+    
+    if (choice$model == "model_1_0") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*x)/(1+x)"
+    if (choice$model == "model_1_1") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar))/(1+alpha1*(x-xbar))"
+    if (choice$model == "model_2_1") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2)/(1+alpha1*(x-xbar))"
+    if (choice$model == "model_2_2") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2)/(1+alpha1*(x-xbar)+alpha2)"
+    if (choice$model == "model_3_2") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2)"
+    if (choice$model == "model_3_3") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2+alpha3*(x-xbar)^3)"
+    if (choice$model == "model_4_3") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3+beta4*(x-xbar)^4)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2+alpha3*(x-xbar)^3)"
+    if (choice$model == "model_4_4") the_function <- "f_{x+1}/f_{x} ~ (beta0+beta1*(x-xbar)+beta2*(x-xbar)^2+beta3*(x-xbar)^3+beta4*(x-xbar)^4)/(1+alpha1*(x-xbar)+alpha2*(x-xbar)^2+alpha3*(x-xbar)^3+alpha4*(x-xbar)^4)"
+    
+    parameter_table <-  coef(summary(choice$full))[,1:2]
+    colnames(parameter_table) <- c("Coef estimates","Coef std errors")
+    
+    d <- exp(1.96*sqrt(log(1+diversity_se^2/f0)))
+    
+    yhats <- fitted(choice$full)
+    
+    plot_data <- rbind(data.frame("x" = xs, 
+                                  "y" = lhs$y, 
+                                  "type" = "Observed"),
+                       data.frame("x" = xs, 
+                                  "y" = yhats, 
+                                  "type" = "Fitted"),
+                       data.frame("x" = 0, 
+                                  "y" = b0_hat, 
+                                  "type" = "Prediction"))
+    my_plot <- ggplot(plot_data, 
+                      aes_string(x = "x", 
+                                 y = "y",
+                                 col = "type", 
+                                 pch = "type")) +
+      geom_point() +
+      labs(x = "x", y = "f(x+1)/f(x)", title = "Plot of ratios and fitted values: Kemp models") +
+      theme_bw()
+    
+    kemp_alpha_estimate <- alpha_estimate(estimate = diversity,
+                                          error = diversity_se,
+                                          model = "Kemp",
+                                          name = "kemp",
+                                          estimand = "richness",
+                                          interval = c(n + f0/d, n + f0*d),
+                                          interval_type = "Approximate: log-normal", 
+                                          frequentist = TRUE, 
+                                          parametric = TRUE,
+                                          reasonable = TRUE,
+                                          warnings = NULL,
+                                          # legacy arguments
+                                          para = parameter_table,
+                                          plot = my_plot,
+                                          other = list(xbar = xbar,
+                                                       code = 1,
+                                                       the_function = the_function,
+                                                       name = choice$model),
+                                          full = choice$full,
+                                          f0_hat = f0)
+    
+    
   }
   kemp_alpha_estimate
-  
 }
 
 rootcheck <- function(model, lhs, nof1=FALSE) {
