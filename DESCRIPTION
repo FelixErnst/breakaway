@@ -41,8 +41,8 @@ Suggests:
     corncob,
     DivNet
 Remotes:
-    - bryandmartin/corncob
-    - adw96/DivNet
+    bryandmartin/corncob,
+    adw96/DivNet
 VignetteBuilder: knitr
 URL: https://adw96.github.io/breakaway/
 BugReports: https://github.com/adw96/breakaway/issues
